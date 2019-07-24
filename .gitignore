@@ -1,0 +1,40 @@
+# Python
+*.py[co]
+
+# building & packages
+/build/
+/dist/
+/*.egg-info
+/*.tar.gz
+/*.rpm
+.doit.db
+/builds/
+
+# vim swap files
+.*.swp
+
+# test coverage
+/.coverage*
+/htmlcov/
+/.tox/
+
+# pytest cache
+/.cache/
+/testing/.cache
+/.pytest_cache/
+
+# Sphinx docs
+/docs/build/
+/docs/source/directives/
+
+# virtualenv
+/env/
+/env_*/
+
+# local configuration files
+/conf/checkb.yaml
+/conf/namespaces.yaml
+/conf/yumrepoinfo.conf
+
+# ansible retry files
+*.retry

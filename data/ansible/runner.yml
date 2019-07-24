@@ -1,0 +1,159 @@
+# The main playbook for running a task through Checkb. This is executed
+# either locally on the overlord or (more usually) remotely on a minion
+# machine.
+
+- hosts: all
+  remote_user: root
+  gather_facts: no
+  vars:
+    # Available variables are documented at executor.py:_create_playbook_vars()
+  tasks:
+    - name: Install required packages
+      dnf:
+        name:
+          - ansible
+          - dnf-plugins-core  # provides 'dnf config-manager' and 'dnf copr'
+          - python3-libselinux
+          - python2-libselinux  # for Fedora 29 and older
+          - standard-test-roles
+          - python3-dnf
+          - rsync  # required for 'synchronize' task
+        state: present
+      when: not local
+      # retry for network failures
+      retries: 3
+      delay: 30
+      register: result
+      until: result is succeeded
+
+    - name: Clean client taskdir
+      file:
+        path: "{{ client_taskdir }}"
+        state: absent
+
+    - name: Create client taskdir
+      file:
+        path: "{{ client_taskdir }}"
+        state: directory
+
+    - name: Upload taskdir to client taskdir
+      synchronize:
+        src: "{{ taskdir }}/"
+        dest: "{{ client_taskdir }}"
+
+    - name: Create artifacts/checkb subdir
+      file:
+        path: "{{ artifacts }}/checkb"
+        state: directory
+      tags:
+        - failsafe
+
+    - name: Upload ansible vars to be loaded in task playbook
+      copy:
+        src: '{{ artifacts }}/checkb/{{ varsfile }}'
+        dest: '{{ artifacts }}/checkb/{{ varsfile }}'
+
+    - name: Create artifacts_root/checkb subdir locally (for heartbeat)
+      file:
+        path: "{{ artifacts_root }}/checkb"
+        state: directory
+      when: checkb_keepalive_minutes|int > 0
+      delegate_to: localhost
+
+    - name: Set up extra DNF repositories (minion_repos)
+      shell: >
+        dnf config-manager --add-repo {{ item }}
+      args:
+        warn: false
+      with_items: '{{ minion_repos }}'
+      when: not local and not item.startswith('copr:')
+      # retry for network failures
+      retries: 3
+      delay: 30
+      register: result
+      until: result is succeeded
+      ignore_errors: '{{ minion_repos_ignore_errors }}'
+
+    - name: Set up extra DNF COPR repositories (minion_repos)
+      shell: >
+        dnf -y copr enable {{ item.replace('copr:','',1) }}
+      args:
+        warn: false
+      with_items: '{{ minion_repos }}'
+      when: not local and item.startswith('copr:')
+      # retry for network failures
+      retries: 3
+      delay: 30
+      register: result
+      until: result is succeeded
+      ignore_errors: '{{ minion_repos_ignore_errors }}'
+
+    - name: Upload secrets
+      copy:
+        src: '{{checkb_secrets_file}}'
+        dest: '{{checkb_secrets_file}}'
+      when: not local
+
+    - name: Start heartbeat
+      command: >
+        ./heartbeat.sh start {{ heartbeat_file }} {{ heartbeat_interval }}
+        {{ checkb_keepalive_minutes | int * 60 }}
+      async: "{{ checkb_keepalive_minutes | int * 60 + 60 }}"
+      poll: 0
+      when: checkb_keepalive_minutes|int > 0
+      delegate_to: localhost
+
+    - name: Run {{ test_playbook }}
+      become: '{{ become_root }}'
+      become_user: root
+      shell: >
+        ansible-playbook "{{ client_taskdir }}/{{ test_playbook }}"
+        --inventory=localhost,
+        --connection=local
+        -e '@{{ artifacts }}/checkb/{{ varsfile }}'
+        &> "{{ artifacts }}/ansible.log"
+      environment:
+        TEST_ARTIFACTS: "{{ artifacts }}"
+        # Make task output "pretty printed" (structured)
+        # https://serverfault.com/a/846232
+        ANSIBLE_STDOUT_CALLBACK: 'debug'
+      ignore_errors: yes
+      register: task
+
+    - name: Delete secrets
+      file:
+        state: absent
+        path: '{{checkb_secrets_file}}'
+      tags:
+        - failsafe
+      when: not local
+
+
+    - name: Kill heartbeat
+      command: ./heartbeat.sh stop {{ heartbeat_file }}
+      when: checkb_keepalive_minutes|int > 0
+      delegate_to: localhost
+      tags:
+        - failsafe
+
+    - name: Get list of all installed packages for debugging purposes
+      shell: rpm -qa | sort > {{ artifacts }}/checkb/rpm-qa.log
+      args:
+        warn: false
+      tags:
+        - failsafe
+
+    - name: Collect logs
+      synchronize:
+        mode: pull
+        src: "{{ artifacts }}/"
+        dest: "{{ artifacts }}"
+      when: not local
+      tags:
+        - failsafe
+
+    - name: Warn about failed task
+      debug:
+        msg: The executed task failed. Inspect 'ansible.log' and 'test.log' in
+             the artifacts directory to learn more.
+      when: task.rc != 0

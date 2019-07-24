@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Checkb task results</title>
+<style>
+body {
+    font-family: Arial, sans-serif;
+}
+a {
+    color: #3c6eb4;
+    text-decoration: none;
+    line-height: inherit;
+}
+a:hover {
+    color: #3662a1;
+}
+h1 {
+    border-bottom: solid 1px #e6e6e6;
+}
+.failed {
+    font-weight: bold;
+    color: red;
+}
+.passed {
+    font-weight: bold;
+    color: green;
+}
+.other_result {
+    font-weight: bold;
+    color: yellow;
+}
+table.results {
+    width: 100%;
+    text-align: left;
+    background: #f2f2f2;
+    border: solid 1px #e6e6e6;
+    margin: 0 0 22px 0;
+    padding: 5px;
+
+}
+.results th {
+    padding: 0 5px 0 0;
+}
+.results td {
+    border-top: solid 1px #e6e6e6;
+    padding: 3px 10px 3px 0;
+}
+</style>
+</head>
+<body>
+<h1>Checkb task results</h1>
+<p>
+    <strong>Artifacts directory:</strong> <a href="file://{{ artifactsdir }}">{{ artifactsdir }}</a>
+</p>
+<table class="results">
+    <thead>
+        <tr>
+            <th>Task</th>
+            <th>Item</th>
+            <th>Outcome</th>
+            <th>Artifact</th>
+            <th>Note</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for result in results %}
+        <tr>
+            <td>{{ result.checkname }}</td>
+            <td>
+            {% if result.type == "koji_build" %}
+            <a href="http://koji.fedoraproject.org/koji/search?match=glob&type=build&terms={{ result.item }}">{{ result.item }}</a>
+            {% elif result.type == "bodhi_update" %}
+            <a href="https://bodhi.fedoraproject.org/updates/{{ result.item }}">{{ result.item }}</a>
+            {% else %}
+            {{ result.item }}
+            {% endif %}
+            ({{ result.type }})
+            </td>
+            <td class="{% if result.outcome == 'FAILED' %}failed{% elif result.outcome == 'PASSED' %}passed{% else %}other_result{% endif %}">{{ result.outcome }}</td>
+            <td><a href="file://{{ artifactsdir }}/{{ result.artifact }}">{{ result.artifact }}</a></td>
+            <td>{{ result.note }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

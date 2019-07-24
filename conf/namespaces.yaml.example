@@ -1,0 +1,21 @@
+# A list of namespaces that any task is allowed to post a result into
+namespaces_safe:
+    - scratch
+
+# A list of git repos that are allowed to post a result into a particular namespace
+namespaces_whitelist:
+    dist:
+        - https://pagure.io/checkb/task-rpmlint.git
+        - https://pagure.io/checkb/task-upgradepath.git
+        - https://pagure.io/task-abicheck.git
+        - https://pagure.io/checkb/task-rpmgrill.git
+        - https://github.com/fedora-python/checkb-python-versions.git
+        - https://github.com/fedora-modularity/check_modulemd.git
+        - https://pagure.io/checkb/task-rpmdeplint.git
+        - https://pagure.io/checkb/task-upstream-atomic.git
+        - https://pagure.io/checkb/task-fedora-cloud-tests.git
+        - https://pagure.io/checkb/task-modularity-testing-framework.git
+    pkg:
+        - git://pkgs.fedoraproject.org/test-rpms/
+        - git://pkgs.fedoraproject.org/test-modules/
+        - git://pkgs.fedoraproject.org/test-docker/
